@@ -1,8 +1,6 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
- * @flow
- */
+  Blackletter for android
+*/
 
 import React, { Component } from 'react';
 import {
@@ -12,32 +10,14 @@ import {
   View
 } from 'react-native';
 
+import Root from './components/root.js';
+
 export default class app extends Component {
   render() {
     return (
-      <View style={styles.container}>
-        <Text style={styles.welcome}>
-          Million dollar idea #21 begins
-        </Text>
-      </View>
+      <Root />
     );
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5FCFF',
-  },
-  welcome: {
-    fontSize: 20,
-    textAlign: 'center',
-    margin: 10,
-    fontWeight: '100',
-    fontFamily: 'monospace',
-  },
-});
 
 AppRegistry.registerComponent('app', () => app);
