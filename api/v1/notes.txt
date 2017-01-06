@@ -1,1 +1,12 @@
-Use SQL::Abstract for the DB handling.
+# Notes
+
+## General Plans:
+
+Use Mojolicious::Lite for api v1, use full featured moving forward
+
+-----------------------------------------------------------------
+
+## Dev issues
+
+Going to implement my own sessions independent of mojo so that
+transition to oauth2 isn't more difficult later.

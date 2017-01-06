@@ -1,0 +1,7 @@
+{
+	"dbname" : "database",
+	"dbuser" : "username",
+	"dbpass" : "password",
+	"production" : false,
+	"debug" : false
+}
