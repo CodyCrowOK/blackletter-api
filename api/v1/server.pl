@@ -11,7 +11,14 @@ use DBI;
 use DBD::Pg;
 use Passwords;
 use Sereal qw(encode_sereal decode_sereal);
+use Email::Valid;
 
+use constant API_VERSION => qw(0.0.0);
+use constant URL_PREFIX => qw(/api/v1);
+
+sub register_user;
+sub normalize_email;
+sub get_user;
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
 my $config = parse_json do {
@@ -27,15 +34,15 @@ plugin 'authentication' => {
 	load_user => sub {
 		my $app = shift;
 		my $uid = shift;
-		return 'john';
+		return $uid;
 	},
 	validate_user => sub {
 		my $app = shift;
-		my $email = shift || '';	
+		my $email = shift || '';
 		my $password = shift || '';
 		my $extra = shift || {};
 
-		my $stmt = "SELECT password, email FROM \"user\" WHERE email = ?;";
+		my $stmt = "SELECT password, email FROM users WHERE email = ?;";
 		my $sth = $dbh->prepare($stmt);
 		$sth->bind_param(1, $email);
 		$sth->execute;
@@ -51,12 +58,62 @@ plugin 'authentication' => {
 	}
 };
 
+
+# Users
+get URL_PREFIX . '/users' => sub {
+	my $c = shift;
+	$c->render(json => {
+		'get' => URL_PREFIX . '/users/:id',
+		'post' => URL_PREFIX . '/users',
+		'put' => URL_PREFIX . '/users',
+		'del' => URL_PREFIX . '/users/:id'
+	});
+};
+
+get URL_PREFIX . '/users/:id' => sub {
+
+};
+
+post URL_PREFIX . '/users' => sub {
+	my $c = shift;
+	my $params = parse_json $c->req->body;
+
+	my $name = $params->{name};
+	my $email = Email::Valid->address($params->{email});
+	my $password = $params->{password};
+
+	return $c->render(json => {msg => 'Name cannot be blank.'}, status => 400) unless $name;
+	return $c->render(json => {msg => 'Email is invalid.'}, status => 400) unless $email;
+	return $c->render(json => {msg => 'Password cannot be blank.'}, status => 400) unless $password;
+
+	my $uid = register_user $name, $email, $password or return $c->render(
+		json => {msg => 'Email already in use.'},
+		status => 400
+	);
+
+	say 'UID: ' . $uid;
+
+	$c->render(json => get_user $uid, status => 201);
+
+};
+
+put URL_PREFIX . '/users' => sub {
+
+};
+
+del URL_PREFIX . '/users/:id' => sub {
+};
+
+# Helper subroutines
+
 sub register_user {
 	my ($name, $email, $password) = @_;
 	my $hash = password_hash $password;
 	my $encoded_hash = encode_sereal $hash;
 
-	my $stmt = "INSERT INTO \"user\" (name, email, password) VALUES (?, ?, ?);";
+	$email = normalize_email $email;
+
+	my $stmt = "INSERT INTO users (name, email, password) VALUES (?, ?, ?) RETURNING id;";
 	my $sth = $dbh->prepare($stmt);
 	$sth->bind_param(1, $name);
 	$sth->bind_param(2, $email);
@@ -64,8 +121,34 @@ sub register_user {
 
 	$sth->execute;
 
-}
+	return $sth->fetch->[0] unless $sth->err;
+	return 0;
+};
 
-get '/' => {text => 'I ♥ Blackletter'};
+sub normalize_email {
+	my $email = shift;
+	my @parts = split /@/, $email;
+	return join '@', $parts[0], lc $parts[1];
+};
+
+# Look up user hashref given user id
+sub get_user {
+	my $uid = shift;
+
+	my $stmt = "SELECT id, name, email FROM users WHERE id = ?;";
+	my $sth = $dbh->prepare($stmt);
+	$sth->bind_param(1, $uid);
+	$sth->execute;
+
+	return 0 if $sth->err;
+
+	return $sth->fetchrow_hashref;
+};
+
+get '/' => {
+	json => {'api' => URL_PREFIX}
+};
+
+get '*' => {text => '404 Not Found', status => 404};
 
 app->start;
