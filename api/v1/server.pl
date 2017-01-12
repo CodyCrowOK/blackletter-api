@@ -71,7 +71,12 @@ get URL_PREFIX . '/users' => sub {
 };
 
 get URL_PREFIX . '/users/:id' => sub {
+	my $c = shift;
 
+	my $user = get_user $c->param('id');
+
+	$c->render(json => $user, status => 200) if $user;
+	$c->render(json => {msg => 'Invalid user ID.', status => 400});
 };
 
 post URL_PREFIX . '/users' => sub {
@@ -90,8 +95,6 @@ post URL_PREFIX . '/users' => sub {
 		json => {msg => 'Email already in use.'},
 		status => 400
 	);
-
-	say 'UID: ' . $uid;
 
 	$c->render(json => get_user $uid, status => 201);
 
