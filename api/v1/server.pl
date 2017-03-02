@@ -12,6 +12,10 @@ use DBD::Pg;
 use Passwords;
 use Sereal qw(encode_sereal decode_sereal);
 use Email::Valid;
+use Crypt::Random qw(makerandom);
+use Digest::SHA qw(sha256);
+
+use Data::Dumper;
 
 use constant API_VERSION => qw(0.0.0);
 use constant URL_PREFIX => qw(/api/v1);
@@ -19,6 +23,8 @@ use constant URL_PREFIX => qw(/api/v1);
 sub register_user;
 sub normalize_email;
 sub get_user;
+sub create_session;
+sub get_uid_from_email;
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
 my $config = parse_json do {
@@ -58,6 +64,28 @@ plugin 'authentication' => {
 	}
 };
 
+# Sessions
+post URL_PREFIX . '/sessions' => sub {
+	my $c = shift;
+	my $params = parse_json $c->req->body;
+
+	my $email = normalize_email(Email::Valid->address($params->{email}));
+	my $password = $params->{password};
+
+	say 'Logging in with: ' . $email . ' ' . $password if $config->{debug};
+
+	app->plugin('RemoteAddr');
+	my $ip = $c->remote_addr;
+
+	if ($c->authenticate($email, $password)) {
+		my $session_id = create_session($email, $ip);
+		$c->render(json => {
+			session_id => $session_id
+		}, status => 201);
+	} else {
+		$c->render(json => {msg => 'Invalid login.'}, status => 401);
+	}
+};
 
 # Users
 get URL_PREFIX . '/users' => sub {
@@ -75,7 +103,8 @@ get URL_PREFIX . '/users/:id' => sub {
 
 	my $user = get_user $c->param('id');
 
-	$c->render(json => $user, status => 200) if $user;
+	return $c->render(json => $user, status => 200) if $user;
+
 	$c->render(json => {msg => 'Invalid user ID.', status => 400});
 };
 
@@ -114,7 +143,7 @@ sub register_user {
 	my $hash = password_hash $password;
 	my $encoded_hash = encode_sereal $hash;
 
-	$email = normalize_email $email;
+	$email = normalize_email Email::Valid->address($email);
 
 	my $stmt = "INSERT INTO users (name, email, password) VALUES (?, ?, ?) RETURNING id;";
 	my $sth = $dbh->prepare($stmt);
@@ -146,6 +175,47 @@ sub get_user {
 	return 0 if $sth->err;
 
 	return $sth->fetchrow_hashref;
+};
+
+sub create_session {
+	my ($email, $ip) = @_;
+
+	my $session_id = sha256 makerandom(
+		Size => 512,
+		Strength => 1
+	);
+
+	my $uid = get_uid_from_email $email;
+
+	say "Creating session ${session_id} for user ${uid}" if $config->{debug};
+
+	my $stmt = "INSERT INTO sessions (user_id, time, ip, id) VALUES (?, NOW(), ?, ?);";
+	my $sth = $dbh->prepare($stmt);
+
+	$sth->bind_param(1, $uid);
+	$sth->bind_param(2, $ip, { pg_type => DBD::Pg::PG_CIDR });
+	$sth->bind_param(3, $session_id, { pg_type => DBD::Pg::PG_BYTEA });
+
+	$sth->execute;
+
+	return $session_id unless $sth->err;
+
+	say $sth->err if $config->{debug};
+	return 0;
+};
+
+sub get_uid_from_email {
+	my $email = shift;
+
+	my $stmt = "SELECT id FROM users WHERE email = ?;";
+	my $sth = $dbh->prepare($stmt);
+	$sth->bind_param(1, $email);
+	$sth->execute;
+
+	return $sth->fetch->[0] unless $sth->err;
+
+	say $sth->err if $config->{debug};
+	return 0;
 };
 
 get '/' => {
