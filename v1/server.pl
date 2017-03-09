@@ -34,6 +34,11 @@ my $config = parse_json do {
 close $fh;
 my $dbh = DBI->connect("dbi:Pg:dbname=$config->{dbname};", $config->{dbuser}, $config->{dbpass});
 
+# Need this for CORS
+app->hook(before_dispatch => sub {
+	my $c = shift;
+	$c->res->headers->header('Access-Control-Allow-Origin' => '*');
+});
 
 plugin 'authentication' => {
 	autoload_user => 1,
@@ -222,6 +227,8 @@ get '/' => {
 	json => {'api' => URL_PREFIX}
 };
 
-get '*' => {text => '404 Not Found', status => 404};
+get '*' => {json => {
+	msg => '404 Not Found'
+}, status => 404};
 
 app->start;
