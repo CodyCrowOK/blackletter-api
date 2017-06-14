@@ -25,6 +25,7 @@ sub normalize_email;
 sub get_user;
 sub create_session;
 sub get_uid_from_email;
+sub get_owned_events;
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
 my $config = parse_json do {
@@ -141,6 +142,18 @@ put URL_PREFIX . '/users' => sub {
 del URL_PREFIX . '/users/:id' => sub {
 };
 
+# Events
+
+get URL_PREFIX . '/user_events/:user_id' => sub {
+	my $c = shift;
+	my $user = get_user $c->param('user_id');
+
+	return $c->render(json => [], status => 400) unless $user;
+
+	my $events = get_owned_events $user->{id};
+	return $c->render(json => $events, status => 200);
+};
+
 # Helper subroutines
 
 sub register_user {
@@ -222,6 +235,23 @@ sub get_uid_from_email {
 	say $sth->err if $config->{debug};
 	return 0;
 };
+
+# Event helpers
+
+sub get_owned_events {
+	my $user_id = shift;
+
+	my $stmt = "SELECT owner, event, name FROM user_owns_event LEFT JOIN events ON user_owns_event.event = events.id WHERE owner = ?;";
+	my $sth = $dbh->prepare($stmt);
+	$sth->bind_param(1, $user_id);
+	$sth->execute;
+
+	# say Dumper $sth->fetchall_arrayref;
+	return $sth->fetchall_arrayref({}) unless $sth->err;
+
+	say $sth->err if $config->{debug};
+	return [];
+}
 
 get '/' => {
 	json => {'api' => URL_PREFIX}
