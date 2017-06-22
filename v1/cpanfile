@@ -1,6 +1,7 @@
 # cpanfile revision 1
 # TODO: change versions to be more deterministic
 
+requires 'perl', '5.022';
 requires 'Mojolicious::Lite', '0';
 requires 'Mojolicious::Plugin::Authentication', '0';
 requires 'JSON::Parse', '0';
