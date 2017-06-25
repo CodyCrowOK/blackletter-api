@@ -1,13 +1,20 @@
 CREATE TABLE events
 (
-    id INTEGER DEFAULT nextval('events_id_seq'::regclass) PRIMARY KEY NOT NULL,
+    id SERIAL PRIMARY KEY NOT NULL,
     name VARCHAR(100)
 );
 CREATE TABLE notes
 (
-    id INTEGER DEFAULT nextval('notes_id_seq'::regclass) PRIMARY KEY NOT NULL,
+    id SERIAL PRIMARY KEY NOT NULL,
     title VARCHAR(100),
     body TEXT
+);
+CREATE TABLE users
+(
+    id SERIAL PRIMARY KEY NOT NULL,
+    name VARCHAR(100),
+    email VARCHAR(256) NOT NULL,
+    password BYTEA
 );
 CREATE TABLE sessions
 (
@@ -17,7 +24,6 @@ CREATE TABLE sessions
     id BYTEA PRIMARY KEY NOT NULL,
     CONSTRAINT session_user_id_fk FOREIGN KEY (user_id) REFERENCES users (id)
 );
-CREATE UNIQUE INDEX sessions_id_uindex ON sessions (id);
 CREATE TABLE user_guest_at_event
 (
     guest INTEGER,
@@ -48,11 +54,5 @@ CREATE TABLE user_sends_note
     CONSTRAINT user_sends_note_user_id_fk FOREIGN KEY (sender) REFERENCES users (id),
     CONSTRAINT events_sends_note_note_id_fk FOREIGN KEY (note) REFERENCES notes (id)
 );
-CREATE TABLE users
-(
-    id INTEGER DEFAULT nextval('users_id_seq'::regclass) PRIMARY KEY NOT NULL,
-    name VARCHAR(100),
-    email VARCHAR(256) NOT NULL,
-    password BYTEA
-);
 CREATE UNIQUE INDEX user_email_uindex ON users (email);
+CREATE UNIQUE INDEX sessions_id_uindex ON sessions (id);
