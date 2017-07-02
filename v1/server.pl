@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use diagnostics;
 use v5.22;
 
 use Mojolicious::Lite;
@@ -17,6 +18,11 @@ use Digest::SHA qw(sha256);
 
 use Data::Dumper;
 
+use File::Basename qw(dirname);
+use Cwd  qw(abs_path);
+use lib './lib/';
+use Blackletter::Users;
+
 use constant API_VERSION => qw(0.0.0);
 use constant URL_PREFIX => qw(/api/v1);
 
@@ -26,6 +32,8 @@ sub get_user;
 sub create_session;
 sub get_uid_from_email;
 sub get_owned_events;
+
+Blackletter::Users::create();
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
 my $config = parse_json do {
