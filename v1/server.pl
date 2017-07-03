@@ -20,13 +20,13 @@ use Digest::SHA qw(sha256);
 use Data::Dumper;
 
 use lib './lib/';
+use Blackletter::Sessions;
 use Blackletter::Users;
 use Blackletter::Utilities qw(normalize_email);
 
 use constant API_VERSION => qw(0.0.0);
 use constant URL_PREFIX => qw(/api/v1);
 
-sub create_session;
 sub get_owned_events;
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
@@ -43,6 +43,7 @@ my $conn = DBIx::Connector->new("dbi:Pg:dbname=$config->{dbname};", $config->{db
 my $dbh = $conn->dbh; #TODO: Remove the need for this.
 
 # Faux singletons for resources
+my $Sessions = Blackletter::Sessions->new(conn => $conn, config => $config);
 my $Users = Blackletter::Users->new(conn => $conn, config => $config);
 
 # Need this for CORS
@@ -94,7 +95,7 @@ post URL_PREFIX . '/sessions' => sub {
 	my $ip = $c->remote_addr;
 
 	if ($c->authenticate($email, $password)) {
-		my $session_id = create_session($email, $ip);
+		my $session_id = $Sessions->create($email, $ip);
 		$c->render(json => {
 			session_id => $session_id
 		}, status => 201);
@@ -164,33 +165,6 @@ get URL_PREFIX . '/user_events/:user_id' => sub {
 };
 
 # Helper subroutines
-
-sub create_session {
-	my ($email, $ip) = @_;
-
-	my $session_id = sha256 makerandom(
-		Size => 512,
-		Strength => 1
-	);
-
-	my $uid = $Users->get_uid_from_email($email);
-
-	say "Creating session ${session_id} for user ${uid}" if $config->{debug};
-
-	my $stmt = "INSERT INTO sessions (user_id, time, ip, id) VALUES (?, NOW(), ?, ?);";
-	my $sth = $dbh->prepare($stmt);
-
-	$sth->bind_param(1, $uid);
-	$sth->bind_param(2, $ip, { pg_type => DBD::Pg::PG_CIDR });
-	$sth->bind_param(3, $session_id, { pg_type => DBD::Pg::PG_BYTEA });
-
-	$sth->execute;
-
-	return $session_id unless $sth->err;
-
-	say $sth->err if $config->{debug};
-	return 0;
-};
 
 # Event helpers
 
