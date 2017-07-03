@@ -21,15 +21,12 @@ use Data::Dumper;
 
 use lib './lib/';
 use Blackletter::Users;
+use Blackletter::Utilities qw(normalize_email);
 
 use constant API_VERSION => qw(0.0.0);
 use constant URL_PREFIX => qw(/api/v1);
 
-sub register_user;
-sub normalize_email;
-# sub get_user;
 sub create_session;
-sub get_uid_from_email;
 sub get_owned_events;
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
@@ -46,7 +43,7 @@ my $conn = DBIx::Connector->new("dbi:Pg:dbname=$config->{dbname};", $config->{db
 my $dbh = $conn->dbh; #TODO: Remove the need for this.
 
 # Faux singletons for resources
-my $Users = Blackletter::Users->new(conn => $conn);
+my $Users = Blackletter::Users->new(conn => $conn, config => $config);
 
 # Need this for CORS
 app->hook(before_dispatch => sub {
@@ -138,7 +135,7 @@ post URL_PREFIX . '/users' => sub {
 	return $c->render(json => {msg => 'Email is invalid.'}, status => 400) unless $email;
 	return $c->render(json => {msg => 'Password cannot be blank.'}, status => 400) unless $password;
 
-	my $uid = register_user $name, $email, $password or return $c->render(
+	my $uid = $Users->create($name, $email, $password) or return $c->render(
 		json => {msg => 'Email already in use.'},
 		status => 400
 	);
@@ -168,45 +165,6 @@ get URL_PREFIX . '/user_events/:user_id' => sub {
 
 # Helper subroutines
 
-sub register_user {
-	my ($name, $email, $password) = @_;
-	my $hash = password_hash $password;
-	my $encoded_hash = encode_sereal $hash;
-
-	$email = normalize_email $email;
-
-	my $stmt = "INSERT INTO users (name, email, password) VALUES (?, ?, ?) RETURNING id;";
-	my $sth = $dbh->prepare($stmt);
-	$sth->bind_param(1, $name);
-	$sth->bind_param(2, $email);
-	$sth->bind_param(3, $encoded_hash, { pg_type => DBD::Pg::PG_BYTEA });
-
-	$sth->execute;
-
-	return $sth->fetch->[0] unless $sth->err;
-	return 0;
-};
-
-sub normalize_email {
-	my $email = shift;
-	my @parts = split /@/, $email;
-	return join '@', $parts[0], lc $parts[1];
-};
-
-# Look up user hashref given user id
-# sub get_user {
-# 	my $uid = shift;
-#
-# 	my $stmt = "SELECT id, name, email FROM users WHERE id = ?;";
-# 	my $sth = $dbh->prepare($stmt);
-# 	$sth->bind_param(1, $uid);
-# 	$sth->execute;
-#
-# 	return 0 if $sth->err;
-#
-# 	return $sth->fetchrow_hashref;
-# };
-
 sub create_session {
 	my ($email, $ip) = @_;
 
@@ -215,7 +173,7 @@ sub create_session {
 		Strength => 1
 	);
 
-	my $uid = get_uid_from_email $email;
+	my $uid = $Users->get_uid_from_email($email);
 
 	say "Creating session ${session_id} for user ${uid}" if $config->{debug};
 
@@ -229,20 +187,6 @@ sub create_session {
 	$sth->execute;
 
 	return $session_id unless $sth->err;
-
-	say $sth->err if $config->{debug};
-	return 0;
-};
-
-sub get_uid_from_email {
-	my $email = shift;
-
-	my $stmt = "SELECT id FROM users WHERE email = ?;";
-	my $sth = $dbh->prepare($stmt);
-	$sth->bind_param(1, $email);
-	$sth->execute;
-
-	return $sth->fetch->[0] unless $sth->err;
 
 	say $sth->err if $config->{debug};
 	return 0;
