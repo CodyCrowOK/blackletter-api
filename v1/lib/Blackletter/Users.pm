@@ -60,20 +60,4 @@ sub delete {
 
 }
 
-sub get_uid_from_email {
-	my ($self, $email) = shift;
-	my $dbh = $self->conn->dbh;
-	my $config = $self->config;
-
-	my $stmt = "SELECT id FROM users WHERE email = ?;";
-	my $sth = $dbh->prepare($stmt);
-	$sth->bind_param(1, $email);
-	$sth->execute;
-
-	return $sth->fetch->[0] unless $sth->err;
-
-	say $sth->err if $config->{debug};
-	return 0;
-}
-
 1;

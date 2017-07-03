@@ -22,12 +22,11 @@ use Data::Dumper;
 use lib './lib/';
 use Blackletter::Sessions;
 use Blackletter::Users;
+use Blackletter::UserEvents;
 use Blackletter::Utilities qw(normalize_email);
 
 use constant API_VERSION => qw(0.0.0);
 use constant URL_PREFIX => qw(/api/v1);
-
-sub get_owned_events;
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
 my $config = parse_json do {
@@ -35,16 +34,16 @@ my $config = parse_json do {
 	<$fh>;
 };
 close $fh;
-# my $dbh = DBI->connect("dbi:Pg:dbname=$config->{dbname};", $config->{dbuser}, $config->{dbpass});
+
 my $conn = DBIx::Connector->new("dbi:Pg:dbname=$config->{dbname};", $config->{dbuser}, $config->{dbpass}, {
 	RaiseError => 1,
 	AutoCommit => 1,
 });
-my $dbh = $conn->dbh; #TODO: Remove the need for this.
 
 # Faux singletons for resources
 my $Sessions = Blackletter::Sessions->new(conn => $conn, config => $config);
 my $Users = Blackletter::Users->new(conn => $conn, config => $config);
+my $UserEvents = Blackletter::UserEvents->new(conn => $conn, config => $config);
 
 # Need this for CORS
 app->hook(before_dispatch => sub {
@@ -64,6 +63,7 @@ plugin 'authentication' => {
 		my $email = shift || '';
 		my $password = shift || '';
 		my $extra = shift || {};
+		my $dbh = $conn->dbh;
 
 		my $stmt = "SELECT password, email FROM users WHERE email = ?;";
 		my $sth = $dbh->prepare($stmt);
@@ -160,28 +160,9 @@ get URL_PREFIX . '/user_events/:user_id' => sub {
 
 	return $c->render(json => [], status => 400) unless $user;
 
-	my $events = get_owned_events $user->{id};
+	my $events = $UserEvents->read($user->{id});
 	return $c->render(json => $events, status => 200);
 };
-
-# Helper subroutines
-
-# Event helpers
-
-sub get_owned_events {
-	my $user_id = shift;
-
-	my $stmt = "SELECT owner, event, name FROM user_owns_event LEFT JOIN events ON user_owns_event.event = events.id WHERE owner = ?;";
-	my $sth = $dbh->prepare($stmt);
-	$sth->bind_param(1, $user_id);
-	$sth->execute;
-
-	# say Dumper $sth->fetchall_arrayref;
-	return $sth->fetchall_arrayref({}) unless $sth->err;
-
-	say $sth->err if $config->{debug};
-	return [];
-}
 
 get '/' => {
 	json => {'api' => URL_PREFIX}
