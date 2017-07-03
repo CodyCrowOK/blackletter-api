@@ -9,6 +9,7 @@ use Mojolicious::Lite;
 use Mojolicious::Plugin::Authentication;
 use JSON::Parse 'parse_json';
 use DBI;
+use DBIx::Connector;
 use DBD::Pg;
 use Passwords;
 use Sereal qw(encode_sereal decode_sereal);
@@ -18,8 +19,6 @@ use Digest::SHA qw(sha256);
 
 use Data::Dumper;
 
-use File::Basename qw(dirname);
-use Cwd  qw(abs_path);
 use lib './lib/';
 use Blackletter::Users;
 
@@ -28,12 +27,10 @@ use constant URL_PREFIX => qw(/api/v1);
 
 sub register_user;
 sub normalize_email;
-sub get_user;
+# sub get_user;
 sub create_session;
 sub get_uid_from_email;
 sub get_owned_events;
-
-Blackletter::Users::create();
 
 open my $fh, '<:encoding(UTF-8)', 'config.json' or die "Could not open config.json: $!";
 my $config = parse_json do {
@@ -41,7 +38,15 @@ my $config = parse_json do {
 	<$fh>;
 };
 close $fh;
-my $dbh = DBI->connect("dbi:Pg:dbname=$config->{dbname};", $config->{dbuser}, $config->{dbpass});
+# my $dbh = DBI->connect("dbi:Pg:dbname=$config->{dbname};", $config->{dbuser}, $config->{dbpass});
+my $conn = DBIx::Connector->new("dbi:Pg:dbname=$config->{dbname};", $config->{dbuser}, $config->{dbpass}, {
+	RaiseError => 1,
+	AutoCommit => 1,
+});
+my $dbh = $conn->dbh; #TODO: Remove the need for this.
+
+# Faux singletons for resources
+my $Users = Blackletter::Users->new(conn => $conn);
 
 # Need this for CORS
 app->hook(before_dispatch => sub {
@@ -114,8 +119,7 @@ get URL_PREFIX . '/users' => sub {
 
 get URL_PREFIX . '/users/:id' => sub {
 	my $c = shift;
-
-	my $user = get_user $c->param('id');
+	my $user = $Users->read($c->param('id'));
 
 	return $c->render(json => $user, status => 200) if $user;
 
@@ -139,7 +143,7 @@ post URL_PREFIX . '/users' => sub {
 		status => 400
 	);
 
-	$c->render(json => get_user $uid, status => 201);
+	$c->render(json => $Users->read($uid), status => 201);
 
 };
 
@@ -154,7 +158,7 @@ del URL_PREFIX . '/users/:id' => sub {
 
 get URL_PREFIX . '/user_events/:user_id' => sub {
 	my $c = shift;
-	my $user = get_user $c->param('user_id');
+	my $user = $Users->read($c->param('user_id'));
 
 	return $c->render(json => [], status => 400) unless $user;
 
@@ -169,7 +173,7 @@ sub register_user {
 	my $hash = password_hash $password;
 	my $encoded_hash = encode_sereal $hash;
 
-	$email = normalize_email Email::Valid->address($email);
+	$email = normalize_email $email;
 
 	my $stmt = "INSERT INTO users (name, email, password) VALUES (?, ?, ?) RETURNING id;";
 	my $sth = $dbh->prepare($stmt);
@@ -190,18 +194,18 @@ sub normalize_email {
 };
 
 # Look up user hashref given user id
-sub get_user {
-	my $uid = shift;
-
-	my $stmt = "SELECT id, name, email FROM users WHERE id = ?;";
-	my $sth = $dbh->prepare($stmt);
-	$sth->bind_param(1, $uid);
-	$sth->execute;
-
-	return 0 if $sth->err;
-
-	return $sth->fetchrow_hashref;
-};
+# sub get_user {
+# 	my $uid = shift;
+#
+# 	my $stmt = "SELECT id, name, email FROM users WHERE id = ?;";
+# 	my $sth = $dbh->prepare($stmt);
+# 	$sth->bind_param(1, $uid);
+# 	$sth->execute;
+#
+# 	return 0 if $sth->err;
+#
+# 	return $sth->fetchrow_hashref;
+# };
 
 sub create_session {
 	my ($email, $ip) = @_;

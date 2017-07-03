@@ -1,4 +1,3 @@
-# cpanfile revision 1
 # TODO: change versions to be more deterministic
 
 requires 'perl', '5.022';
@@ -6,9 +5,12 @@ requires 'Mojolicious::Lite', '0';
 requires 'Mojolicious::Plugin::Authentication', '0';
 requires 'JSON::Parse', '0';
 requires 'DBI', '0';
+requires 'DBIx::Connector', '0';
 #requires 'DBD:Pg', '0'; # included as -IDBD::Pg for now...
 requires 'Passwords', '0';
 requires 'Sereal', '0';
 requires 'Email::Valid', '0';
 requires 'Crypt::Random', '0';
 requires 'Digest::SHA', '0';
+
+requires 'Moose', '0';
