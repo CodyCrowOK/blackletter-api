@@ -12,5 +12,6 @@ requires 'Sereal', '0';
 requires 'Email::Valid', '0';
 requires 'Crypt::Random', '0';
 requires 'Digest::SHA', '0';
+requires 'Mojolicious::Plugin::RemoteAddr', '0';
 
 requires 'Moose', '0';

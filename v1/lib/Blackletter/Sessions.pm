@@ -11,6 +11,8 @@ use DBD::Pg;
 use Crypt::Random qw(makerandom);
 use Digest::SHA qw(sha256);
 
+use Data::Dumper;
+
 use Exporter qw(import);
 our @EXPORT_OK = qw(create);
 
@@ -18,6 +20,7 @@ has 'conn', is => 'ro', isa => 'DBIx::Connector';
 has 'config', is => 'ro', isa => 'HashRef';
 
 sub create {
+	# say Dumper @_;
 	my ($self, $email, $ip) = @_;
 	my $dbh = $self->conn->dbh;
 	my $config = $self->config;
@@ -27,7 +30,7 @@ sub create {
 		Strength => 1
 	);
 
-	my $uid = get_uid_from_email($email);
+	my $uid = $self->get_uid_from_email($email);
 
 	say "Creating session ${session_id} for user ${uid}" if $config->{debug};
 
@@ -47,13 +50,17 @@ sub create {
 }
 
 sub get_uid_from_email {
-	my ($self, $email) = shift;
+	say Dumper @_;
+	my ($self, $email) = @_;
 	my $dbh = $self->conn->dbh;
 	my $config = $self->config;
+
+	say "Email: " . $email;
 
 	my $stmt = "SELECT id FROM users WHERE email = ?;";
 	my $sth = $dbh->prepare($stmt);
 	$sth->bind_param(1, $email);
+	say "Statement: " . Dumper $sth if $config->{debug};
 	$sth->execute;
 
 	return $sth->fetch->[0] unless $sth->err;

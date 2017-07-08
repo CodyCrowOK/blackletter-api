@@ -164,6 +164,23 @@ get URL_PREFIX . '/user_events/:user_id' => sub {
 	return $c->render(json => $events, status => 200);
 };
 
+post URL_PREFIX . '/user_events/:user_id' => sub {
+};
+
+get URL_PREFIX . '/user_events/:user_id/:event_id' => sub {
+};
+
+post URL_PREFIX . '/user_events/:user_id/' => sub {
+};
+
+put URL_PREFIX . '/user_events/:user_id/:event_id' => sub {
+};
+
+del URL_PREFIX . '/user_events/:user_id/:event_id' => sub {
+};
+
+# Misc
+
 get '/' => {
 	json => {'api' => URL_PREFIX}
 };

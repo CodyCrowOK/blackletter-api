@@ -627,6 +627,13 @@ DISTRIBUTIONS
       perl 5.010
       strict 0
       warnings 0
+  Mojolicious-Plugin-RemoteAddr-0.03
+    pathname: K/KO/KOORCHIK/Mojolicious-Plugin-RemoteAddr-0.03.tar.gz
+    provides:
+      Mojolicious::Plugin::RemoteAddr 0.03
+    requirements:
+      ExtUtils::MakeMaker 0
+      Mojolicious 3.90
   Moose-2.2005
     pathname: E/ET/ETHER/Moose-2.2005.tar.gz
     provides:
