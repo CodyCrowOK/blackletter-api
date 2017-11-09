@@ -97,7 +97,8 @@ post URL_PREFIX . '/sessions' => sub {
 	if ($c->authenticate($email, $password)) {
 		my $session_id = $Sessions->create($email, $ip);
 		$c->render(json => {
-			session_id => $session_id
+			session_id => $session_id,
+			user_id => $Sessions->read($session_id)
 		}, status => 201);
 	} else {
 		$c->render(json => {msg => 'Invalid login.'}, status => 401);
@@ -168,6 +169,17 @@ post URL_PREFIX . '/user_events/:user_id' => sub {
 };
 
 get URL_PREFIX . '/user_events/:user_id/:event_id' => sub {
+	my $c = shift;
+	my $user = $Users->read($c->param('user_id'));
+	my $event_id = $c->param('event_id');
+
+	return $c->render(json => [], status => 400) unless $user;
+
+	my $events = $UserEvents->read($user->{id});
+
+	my ($event) = grep { $_->{event} == $event_id } @$events;
+
+	return $c->render(json => $event, status => 200);
 };
 
 post URL_PREFIX . '/user_events/:user_id/' => sub {

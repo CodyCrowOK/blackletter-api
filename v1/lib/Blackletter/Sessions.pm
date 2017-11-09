@@ -49,6 +49,21 @@ sub create {
 	return 0;
 }
 
+sub read {
+	my ($self, $session_id) = @_;
+	my $dbh = $self->conn->dbh;
+	my $config = $self->config;
+
+	my $stmt = "SELECT user_id FROM sessions WHERE id = ?";
+	my $sth = $dbh->prepare($stmt);
+	$sth->bind_param(1, $session_id, { pg_type => DBD::Pg::PG_BYTEA });
+	$sth->execute;
+	my $res = $sth->fetchrow_hashref;
+	return $res->{user_id} unless !$res || $sth->err;
+
+	say $sth->err if $config->{debug};
+}
+
 sub get_uid_from_email {
 	say Dumper @_;
 	my ($self, $email) = @_;
