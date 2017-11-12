@@ -8,6 +8,13 @@ use v5.22;
 
 use Moose;
 
+
+use Passwords;
+use Sereal qw(encode_sereal decode_sereal);
+use Email::Valid;
+use Crypt::Random qw(makerandom);
+use Digest::SHA qw(sha256);
+
 use Blackletter::Utilities qw(normalize_email);
 
 use Data::Dumper;
@@ -53,11 +60,46 @@ sub read {
 }
 
 sub update {
+	my ($self, $user, $params) = @_;
+	my $dbh = $self->conn->dbh;
 
+	my $password_update_success = _update_password($self, $user, $params->{password}) if $params->{password};
+
+	my $stmt = "UPDATE users SET name = ?, email = ? WHERE id = ?;";
+	my $sth = $dbh->prepare($stmt);
+	$sth->bind_param(1, $params->{name} || $user->{name});
+	$sth->bind_param(2, $params->{email} || $user->{email});
+	$sth->bind_param(3, $user->{id});
+	$sth->execute;
+
+	return 0 if $sth->err;
+	return {
+		msg => "Couldn't update password."
+	} unless $password_update_success;
+
+	return $self->read($user->{id});
 }
 
 sub delete {
+	# lol no
+}
 
+sub _update_password {
+	my ($self, $user, $password) = @_;
+	my $dbh = $self->conn->dbh;
+
+	my $hash = password_hash $password;
+	my $encoded_hash = encode_sereal $hash;
+
+	my $stmt = "UPDATE users SET password = ? WHERE id = ?;";
+	my $sth = $dbh->prepare($stmt);
+	$sth->bind_param(1, $encoded_hash, { pg_type => DBD::Pg::PG_BYTEA });
+	$sth->bind_param(2, $user->{id});
+	$sth->execute;
+
+	return 0 if $sth->err;
+
+	return 1;
 }
 
 1;

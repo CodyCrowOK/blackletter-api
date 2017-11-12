@@ -11,11 +11,6 @@ use JSON::Parse 'parse_json';
 use DBI;
 use DBIx::Connector;
 use DBD::Pg;
-use Passwords;
-use Sereal qw(encode_sereal decode_sereal);
-use Email::Valid;
-use Crypt::Random qw(makerandom);
-use Digest::SHA qw(sha256);
 
 use Data::Dumper;
 
@@ -23,6 +18,7 @@ use lib './lib/';
 use Blackletter::Sessions;
 use Blackletter::Users;
 use Blackletter::UserEvents;
+use Blackletter::UserAccounts;
 use Blackletter::Utilities qw(normalize_email);
 
 use constant API_VERSION => qw(0.0.0);
@@ -44,6 +40,7 @@ my $conn = DBIx::Connector->new("dbi:Pg:dbname=$config->{dbname};", $config->{db
 my $Sessions = Blackletter::Sessions->new(conn => $conn, config => $config);
 my $Users = Blackletter::Users->new(conn => $conn, config => $config);
 my $UserEvents = Blackletter::UserEvents->new(conn => $conn, config => $config);
+my $UserAccounts = Blackletter::UserAccounts->new(conn => $conn, config => $config);
 
 # Need this for CORS
 app->hook(before_dispatch => sub {
@@ -146,11 +143,28 @@ post URL_PREFIX . '/users' => sub {
 
 };
 
-put URL_PREFIX . '/users' => sub {
+put URL_PREFIX . '/users/:id' => sub {
+	my $c = shift;
+	my $user = $Users->read($c->param('id'));
+	my $params = parse_json $c->req->body;
 
+	my $new_user = $Users->update($user, $params);
+	return $c->render(json => $new_user, status => $new_user->{msg} ? 400 : 200);
 };
 
 del URL_PREFIX . '/users/:id' => sub {
+};
+
+# Account
+
+get URL_PREFIX . '/account/:user_id' => sub {
+	my $c = shift;
+	my $user = $Users->read($c->param('user_id'));
+
+	return $c->render(json => [], status => 400) unless $user;
+
+	my $account = $UserAccounts->read($user->{id});
+	return $c->render(json => $account, status => 200);
 };
 
 # Events
