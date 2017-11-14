@@ -60,10 +60,12 @@ sub read {
 }
 
 sub update {
-	my ($self, $user, $params) = @_;
+	my ($self, $user, $params, $loginFn) = @_;
 	my $dbh = $self->conn->dbh;
 
-	my $password_update_success = _update_password($self, $user, $params->{password}) if $params->{password};
+	my $loginSuccess = &$loginFn($user->{email}, $params->{old_password}) if $loginFn;
+	my $shouldUpdatePassword = $params->{password} && $params->{old_password} && $loginSuccess;
+	my $password_update_success = _update_password($self, $user, $params->{password}) if $shouldUpdatePassword;
 
 	my $stmt = "UPDATE users SET name = ?, email = ? WHERE id = ?;";
 	my $sth = $dbh->prepare($stmt);

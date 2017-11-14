@@ -12,6 +12,12 @@ use DBI;
 use DBIx::Connector;
 use DBD::Pg;
 
+use Passwords;
+use Sereal qw(encode_sereal decode_sereal);
+use Email::Valid;
+use Crypt::Random qw(makerandom);
+use Digest::SHA qw(sha256);
+
 use Data::Dumper;
 
 use lib './lib/';
@@ -46,6 +52,7 @@ my $UserAccounts = Blackletter::UserAccounts->new(conn => $conn, config => $conf
 app->hook(before_dispatch => sub {
 	my $c = shift;
 	$c->res->headers->header('Access-Control-Allow-Origin' => '*');
+	$c->res->headers->header('Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PUT, DEL');
 });
 
 plugin 'authentication' => {
@@ -68,6 +75,7 @@ plugin 'authentication' => {
 		$sth->execute;
 		my @row = $sth->fetchrow_array;
 		my $pass_data = $row[0];
+		return unless $pass_data;
 		my $pass_hash = decode_sereal $pass_data;
 		if (password_verify($password, $pass_hash)) {
 			say $row[1] if $config->{debug};
@@ -147,9 +155,13 @@ put URL_PREFIX . '/users/:id' => sub {
 	my $c = shift;
 	my $user = $Users->read($c->param('id'));
 	my $params = parse_json $c->req->body;
+	say Dumper $user, $params;
 
-	my $new_user = $Users->update($user, $params);
-	return $c->render(json => $new_user, status => $new_user->{msg} ? 400 : 200);
+	my $new_user = $Users->update($user, $params, sub {
+		my ($email, $pass) = @_;
+		return $c->authenticate($email, $pass);
+	});
+	return $c->render(json => $new_user, status => 200);
 };
 
 del URL_PREFIX . '/users/:id' => sub {
@@ -214,5 +226,10 @@ get '/' => {
 get '*' => {json => {
 	msg => '404 Not Found'
 }, status => 404};
+
+options '*' => sub {
+	my $c = shift;
+	return $c->render(json => {}, status => 200);
+};
 
 app->start;
